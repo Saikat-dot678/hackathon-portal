@@ -5,10 +5,10 @@ import RegistrationPhase from "./RegistrationPhase";
 import ProblemSelectionPhase from "./ProblemSelectionPhase";
 import PPTSubmissionPhase from "./PPTSubmissionPhase";
 import FinalRoundPhase from "./FinalRoundPhase";
-import WinnerAnnouncementPhase from "./WinnerAnnouncementPhase"; // <-- Import the new phase
+import WinnerAnnouncementPhase from "./WinnerAnnouncementPhase"; 
+import LockedPhase from "./LockedPhase";
 
 export default function DynamicEventSection() {
-  // Set default view to test out the winners!
   const [activePhase, setActivePhase] = useState("winners");
 
   return (
@@ -16,7 +16,8 @@ export default function DynamicEventSection() {
       
       {/* --- TEMPORARY DEV CONTROLS --- */}
       <div className="flex justify-center gap-2 mb-8 flex-wrap">
-        {['registration', 'problem_selection', 'ppt_submission', 'final_round', 'winners'].map(phase => (
+        {/* FIX 1: Changed 'locked_Demo' to 'locked_demo' to match exactly */}
+        {['registration', 'problem_selection', 'ppt_submission', 'final_round', 'winners', 'locked_demo'].map(phase => (
            <button 
              key={phase}
              onClick={() => setActivePhase(phase)}
@@ -36,10 +37,12 @@ export default function DynamicEventSection() {
           {activePhase === "ppt_submission" && "Project Submission"}
           {activePhase === "final_round" && "Live Final Round"}
           {activePhase === "winners" && "Official Results"}
+          {/* Added a title for the locked state too! */}
+          {activePhase === "locked_demo" && "System Locked"}
         </h2>
         
-        {/* Hide Universal Countdown during final round and winners phases */}
-        {activePhase !== "final_round" && activePhase !== "winners" && (
+        {/* FIX 2: Hide Universal Countdown during locked_demo as well */}
+        {activePhase !== "final_round" && activePhase !== "winners" && activePhase !== "locked_demo" && (
           <div className="flex justify-center gap-4 text-center mt-6">
             {[
               { label: "Days", value: "00" },
@@ -65,6 +68,14 @@ export default function DynamicEventSection() {
         {activePhase === "ppt_submission" && <PPTSubmissionPhase />}
         {activePhase === "final_round" && <FinalRoundPhase />}
         {activePhase === "winners" && <WinnerAnnouncementPhase />}
+        
+        {/* FIX 3: Moved LockedPhase down here where it belongs! */}
+        {activePhase === "locked_demo" && (
+          <LockedPhase 
+            phaseName="Problem Selection" 
+            unlockDate="September 20, 2025 @ 10:00 AM" 
+          />
+        )}
       </div>
 
     </div>

@@ -119,8 +119,54 @@ export default function Home() {
           </div>
         </section>
       </ScrollReveal>
+      
+      {/* 6. ORGANIZERS SECTION (Club Version) */}
+      <ScrollReveal>
+        <section id="organizers" className="scroll-mt-24 text-center">
+          <h2 className="text-3xl font-black text-slate-100 mb-10 uppercase tracking-tight flex items-center justify-center gap-4">
+            <span className="h-px w-12 bg-purple-500 shadow-[0_0_8px_rgba(168,85,247,0.8)]"></span>
+            Organized By
+            <span className="h-px w-12 bg-purple-500 shadow-[0_0_8px_rgba(168,85,247,0.8)]"></span>
+          </h2>
+          
+          <div className="flex flex-col md:flex-row justify-center items-stretch gap-8 max-w-5xl mx-auto">
+            {[
+              { 
+                name: "CSE Students' Society", 
+                role: "Lead Organizer", 
+                shortName: "DEV",
+                desc: "The official society for Computer Science & Engineering and Mathematics & Computing students at NIT Durgapur." 
+              },
+              
+            ].map((club, i) => (
+              <div key={i} className="flex-1 bg-neutral-900/40 border border-purple-900/40 rounded-3xl p-8 md:p-10 flex flex-col items-center hover:border-purple-500/50 hover:bg-purple-900/20 transition-all backdrop-blur-sm group shadow-lg">
+                
+                {/* Club Logo Placeholder - Smooth rounded square */}
+                <div className="w-28 h-28 md:w-32 md:h-32 rounded-2xl bg-black border border-purple-500/30 mb-6 overflow-hidden group-hover:shadow-[0_0_30px_rgba(168,85,247,0.3)] transition-all flex items-center justify-center group-hover:scale-105 duration-500">
+                  {/* Replace this span with an <img src="/your-club-logo.png" /> later */}
+                  <span className="text-transparent bg-clip-text bg-gradient-to-br from-purple-400 to-fuchsia-600 font-black text-4xl tracking-tighter">
+                    {club.shortName}
+                  </span>
+                </div>
+                
+                <p className="text-sm text-fuchsia-400 font-bold uppercase tracking-widest mb-2">{club.role}</p>
+                <h3 className="text-2xl md:text-3xl font-black text-white mb-4 uppercase tracking-tight">{club.name}</h3>
+                <p className="text-slate-400 text-sm md:text-base leading-relaxed max-w-sm">
+                  {club.desc}
+                </p>
+                
+                {/* Optional: Link to club website or socials */}
+                <button className="mt-6 text-purple-400 hover:text-white text-sm font-bold uppercase tracking-wider transition-colors flex items-center gap-2">
+                  Visit Website <span>↗</span>
+                </button>
 
-      {/* 6. CONTACT SECTION */}
+              </div>
+            ))}
+          </div>
+        </section>
+      </ScrollReveal>
+
+      {/* 7. CONTACT SECTION */}
       <ScrollReveal>
         <section id="contact" className="scroll-mt-24 mb-10">
           <div className="bg-gradient-to-b from-neutral-900/80 to-black border border-purple-900/50 rounded-2xl p-8 md:p-12 text-center relative overflow-hidden backdrop-blur-sm">
@@ -142,6 +188,8 @@ export default function Home() {
           </div>
         </section>
       </ScrollReveal>
+
+      
 
     </div>
   );
