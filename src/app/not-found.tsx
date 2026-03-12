@@ -10,6 +10,7 @@ export default function NotFound() {
       {/* Particle Background */}
       <div className="fixed inset-0 z-0 pointer-events-none opacity-50">
         <Particles
+          className="w-full h-full"
           particleCount={300}
           particleSpread={10}
           speed={0.05}
