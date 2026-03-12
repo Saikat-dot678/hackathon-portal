@@ -1,7 +1,7 @@
 import ScrollReveal from "@/components/ui/ScrollReveal";
 import HeroSection from "@/components/static/HeroSection";
 import DynamicEventSection from "@/components/dynamic/DynamicEventSection";
-import Particles from "@/components/ui/Particles"; // <-- Added Particles Import!
+import Particles from "@/components/ui/Particles";
 
 export default function Home() {
   return (
@@ -11,6 +11,7 @@ export default function Home() {
       {/* Particle Background - Pure White Particles on Black Background */}
         <div className="fixed inset-0 z-0 pointer-events-none opacity-70">
           <Particles
+            className="w-full h-full"
             particleCount={500}
             particleSpread={10}
             speed={0.1}
