@@ -25,6 +25,7 @@ export default function RootLayout({
         {/* Particle Background - Pure White Particles on Black Background */}
         <div className="fixed inset-0 z-0 pointer-events-none opacity-70">
           <Particles
+            className="w-full h-full"
             particleCount={500}
             particleSpread={10}
             speed={0.1}
