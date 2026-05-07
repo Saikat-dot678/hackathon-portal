@@ -1,27 +1,35 @@
 import { NextResponse } from 'next/server';
+import { connectDB } from "@/lib/db";
+import Team from "@/models/Team";
 
-// Mock database (replace with Mongoose models later)
-let teamsDB = [
-  { id: "T-042", name: "Cyber Ninjas", track: "Cybersecurity", ps: "Smart Grid Defender", ppt: "link.pdf", status: "pending" },
-  { id: "T-089", name: "Neural Nomads", track: "Artificial Intelligence", ps: "Predictive Healthcare", ppt: "link.pdf", status: "finalist" },
-];
-
+// GET all teams from MongoDB
 export async function GET() {
-  // Add authentication check here later
-  return NextResponse.json({ success: true, data: teamsDB });
+  try {
+    await connectDB();
+    const teams = await Team.find({}); // Fetch all from Mongo
+    return NextResponse.json({ success: true, data: teams });
+  } catch (error: any) {
+    return NextResponse.json({ success: false, error: error.message }, { status: 500 });
+  }
 }
 
+// POST new team to MongoDB
 export async function POST(request: Request) {
   try {
-    const newTeam = await request.json();
-    // Assign an ID and default status
-    newTeam.id = `T-${Math.floor(Math.random() * 900) + 100}`;
-    newTeam.status = 'pending';
+    await connectDB();
+    const body = await request.json();
+
+    // Keeping your teammate's logic for ID and status
+    const newTeamData = {
+      ...body,
+      id: `T-${Math.floor(Math.random() * 900) + 100}`,
+      status: 'pending'
+    };
+
+    const savedTeam = await Team.create(newTeamData);
     
-    teamsDB.push(newTeam);
-    
-    return NextResponse.json({ success: true, data: newTeam }, { status: 201 });
-  } catch (error) {
-    return NextResponse.json({ success: false, error: 'Invalid payload' }, { status: 400 });
+    return NextResponse.json({ success: true, data: savedTeam }, { status: 201 });
+  } catch (error: any) {
+    return NextResponse.json({ success: false, error: error.message }, { status: 400 });
   }
 }
