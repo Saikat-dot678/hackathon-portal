@@ -4,21 +4,55 @@ import { useState, useEffect } from "react";
 import { motion } from "framer-motion";
 import Link from "next/link";
 
+// Define the Team interface for TypeScript
+interface Team {
+  id: string;
+  name: string;
+  track: string;
+  ps: string;
+  ppt: string | null;
+  status: string;
+}
+
 export default function AdminDashboard() {
   const [activePhase, setActivePhase] = useState("registration");
   const [liveStage, setLiveStage] = useState("mentoring_2");
   const [currentTime, setCurrentTime] = useState<string>("");
+  const [teams, setTeams] = useState<Team[]>([]);
 
-  // --- NEW: Mock Database for Teams ---
-  const [teams, setTeams] = useState([
-    { id: "T-042", name: "Cyber Ninjas", track: "Cybersecurity", ps: "Smart Grid Defender", ppt: "link_to_ppt.pdf", status: "pending" },
-    { id: "T-089", name: "Neural Nomads", track: "Artificial Intelligence", ps: "Predictive Healthcare", ppt: "link_to_ppt.pdf", status: "finalist" },
-    { id: "T-104", name: "Byte Brawlers", track: "Web Development", ps: "Decentralized Voting", ppt: null, status: "pending" },
-    { id: "T-221", name: "Ghost Proxies", track: "Internet of Things", ps: "Automated Drone Swarm", ppt: "link_to_ppt.pdf", status: "winner_1" },
-    { id: "T-305", name: "Logic Bombs", track: "Open Innovation", ps: "Next-Gen Compiler", ppt: "link_to_ppt.pdf", status: "pending" },
-  ]);
-
+  // 1. Fetch initial data from the database on load
   useEffect(() => {
+    // Fetch Global System State
+    const fetchSystemState = async () => {
+      try {
+        const res = await fetch('/api/system');
+        const result = await res.json();
+        if (result.success) {
+          setActivePhase(result.data.activePhase);
+          setLiveStage(result.data.liveStage);
+        }
+      } catch (error) {
+        console.error("Failed to fetch system state:", error);
+      }
+    };
+
+    // Fetch Teams Databank
+    const fetchTeams = async () => {
+      try {
+        const res = await fetch('/api/teams');
+        const result = await res.json();
+        if (result.success) {
+          setTeams(result.data);
+        }
+      } catch (error) {
+        console.error("Failed to fetch teams:", error);
+      }
+    };
+
+    fetchSystemState();
+    fetchTeams();
+
+    // Clock Timer
     setCurrentTime(new Date().toLocaleTimeString('en-US', { hour12: false }));
     const timer = setInterval(() => {
       setCurrentTime(new Date().toLocaleTimeString('en-US', { hour12: false }));
@@ -26,18 +60,43 @@ export default function AdminDashboard() {
     return () => clearInterval(timer);
   }, []);
 
-  // Action Handlers for the Admin Table
-  const promoteToFinalist = (id: string) => {
-    setTeams(teams.map(t => t.id === id ? { ...t, status: "finalist" } : t));
+  // 2. Master Phase Override Handler
+  const handlePhaseChange = async (newPhase: string) => {
+    // Optimistic UI update for instant feedback
+    setActivePhase(newPhase);
+
+    try {
+      await fetch('/api/system', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ activePhase: newPhase })
+      });
+    } catch (error) {
+      console.error("Failed to update global phase:", error);
+    }
   };
 
-  const markAsWinner = (id: string, rank: string) => {
-    setTeams(teams.map(t => t.id === id ? { ...t, status: `winner_${rank}` } : t));
+  // 3. Reusable function for updating a team's status in the DB
+  const updateTeamStatus = async (id: string, newStatus: string) => {
+    // Optimistic UI update
+    setTeams(teams.map(t => t.id === id ? { ...t, status: newStatus } : t));
+
+    try {
+      await fetch(`/api/teams/${id}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ status: newStatus })
+      });
+    } catch (error) {
+      console.error(`Failed to update team ${id}:`, error);
+      // In a production app, you might want to revert the state here if the fetch fails
+    }
   };
 
-  const demoteToPending = (id: string) => {
-    setTeams(teams.map(t => t.id === id ? { ...t, status: "pending" } : t));
-  };
+  // Action Handlers for the Admin Table (using the reusable function)
+  const promoteToFinalist = (id: string) => updateTeamStatus(id, "finalist");
+  const markAsWinner = (id: string, rank: string) => updateTeamStatus(id, `winner_${rank}`);
+  const demoteToPending = (id: string) => updateTeamStatus(id, "pending");
 
   const phases = [
     { id: "locked", name: "System Locked", color: "text-red-400 border-red-500/50 bg-red-500/10" },
@@ -107,7 +166,7 @@ export default function AdminDashboard() {
               {phases.map((phase) => (
                 <button
                   key={phase.id}
-                  onClick={() => setActivePhase(phase.id)}
+                  onClick={() => handlePhaseChange(phase.id)}
                   className={`relative p-4 rounded-xl border-2 text-left transition-all overflow-hidden cursor-target group ${
                     activePhase === phase.id 
                       ? phase.color 
@@ -168,7 +227,7 @@ export default function AdminDashboard() {
         </div>
       </div>
 
-      {/* 3. NEW: TEAM MANAGEMENT DATABANK */}
+      {/* 3. TEAM MANAGEMENT DATABANK */}
       <div className="max-w-7xl mx-auto mt-8 bg-[#0a0a0a] border border-slate-800 rounded-2xl overflow-hidden relative z-10 shadow-xl">
         <div className="p-6 border-b border-slate-800 bg-neutral-900/50 flex flex-col sm:flex-row justify-between items-center gap-4">
           <h2 className="text-xl font-black text-white uppercase tracking-widest flex items-center gap-3">
@@ -181,74 +240,80 @@ export default function AdminDashboard() {
         </div>
 
         <div className="overflow-x-auto hide-scrollbar">
-          <table className="w-full text-left text-sm whitespace-nowrap">
-            <thead className="bg-neutral-900 text-slate-400 font-mono text-xs uppercase tracking-widest border-b border-slate-800">
-              <tr>
-                <th className="p-4 pl-6">ID</th>
-                <th className="p-4">Team Name & Track</th>
-                <th className="p-4">Problem Statement</th>
-                <th className="p-4 text-center">Submission</th>
-                <th className="p-4 text-center">Status</th>
-                <th className="p-4 pr-6 text-right">Admin Action</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-slate-800/50">
-              {teams.map((team) => (
-                <tr key={team.id} className="hover:bg-purple-900/10 transition-colors group">
-                  <td className="p-4 pl-6 font-mono text-purple-400 font-bold">{team.id}</td>
-                  <td className="p-4">
-                    <p className="text-white font-bold">{team.name}</p>
-                    <p className="text-xs text-slate-500">{team.track}</p>
-                  </td>
-                  <td className="p-4 text-slate-300 max-w-[200px] truncate">{team.ps}</td>
-                  <td className="p-4 text-center">
-                    {team.ppt ? (
-                      <a href="#" className="inline-block px-3 py-1 bg-green-500/10 text-green-400 border border-green-500/30 rounded text-xs font-mono hover:bg-green-500/20 cursor-target">
-                        View PPT ↗
-                      </a>
-                    ) : (
-                      <span className="text-xs text-slate-600 font-mono italic">Not Submitted</span>
-                    )}
-                  </td>
-                  <td className="p-4 text-center">
-                    <span className={`px-2 py-1 rounded text-xs font-bold uppercase tracking-wider border ${
-                      team.status.includes('winner') ? 'bg-yellow-500/20 text-yellow-400 border-yellow-500/50' :
-                      team.status === 'finalist' ? 'bg-fuchsia-500/20 text-fuchsia-400 border-fuchsia-500/50' :
-                      'bg-slate-800 text-slate-400 border-slate-700'
-                    }`}>
-                      {team.status === 'winner_1' ? '🥇 1st Place' : 
-                       team.status === 'winner_2' ? '🥈 2nd Place' : 
-                       team.status === 'winner_3' ? '🥉 3rd Place' : team.status}
-                    </span>
-                  </td>
-                  <td className="p-4 pr-6 text-right space-x-2">
-                    {/* Logic to show different buttons based on current team status */}
-                    
-                    {team.status === 'pending' && team.ppt && (
-                      <button onClick={() => promoteToFinalist(team.id)} className="px-3 py-1 bg-fuchsia-600/20 text-fuchsia-400 hover:bg-fuchsia-600 hover:text-white border border-fuchsia-500/50 rounded text-xs font-bold uppercase transition-all cursor-target">
-                        Promote ↗
-                      </button>
-                    )}
-
-                    {team.status === 'finalist' && (
-                      <div className="inline-flex gap-1">
-                        <button onClick={() => markAsWinner(team.id, '1')} title="1st Place" className="w-8 h-8 flex items-center justify-center bg-yellow-500/10 border border-yellow-500/30 hover:bg-yellow-500/30 text-yellow-400 rounded cursor-target">🥇</button>
-                        <button onClick={() => markAsWinner(team.id, '2')} title="2nd Place" className="w-8 h-8 flex items-center justify-center bg-slate-300/10 border border-slate-400/30 hover:bg-slate-300/30 text-slate-300 rounded cursor-target">🥈</button>
-                        <button onClick={() => markAsWinner(team.id, '3')} title="3rd Place" className="w-8 h-8 flex items-center justify-center bg-orange-500/10 border border-orange-500/30 hover:bg-orange-500/30 text-orange-400 rounded cursor-target">🥉</button>
-                        <button onClick={() => demoteToPending(team.id)} title="Revoke" className="w-8 h-8 flex items-center justify-center bg-red-500/10 border border-red-500/30 hover:bg-red-500/30 text-red-400 rounded ml-2 cursor-target">✕</button>
-                      </div>
-                    )}
-                    
-                    {team.status.includes('winner') && (
-                       <button onClick={() => promoteToFinalist(team.id)} className="px-3 py-1 bg-slate-800 text-slate-400 hover:bg-slate-700 hover:text-white rounded text-xs font-bold uppercase transition-all cursor-target">
-                         Undo
-                       </button>
-                    )}
-                  </td>
+          {teams.length === 0 ? (
+            <div className="p-8 text-center text-slate-500 font-mono text-sm">
+              Loading team databank...
+            </div>
+          ) : (
+            <table className="w-full text-left text-sm whitespace-nowrap">
+              <thead className="bg-neutral-900 text-slate-400 font-mono text-xs uppercase tracking-widest border-b border-slate-800">
+                <tr>
+                  <th className="p-4 pl-6">ID</th>
+                  <th className="p-4">Team Name & Track</th>
+                  <th className="p-4">Problem Statement</th>
+                  <th className="p-4 text-center">Submission</th>
+                  <th className="p-4 text-center">Status</th>
+                  <th className="p-4 pr-6 text-right">Admin Action</th>
                 </tr>
-              ))}
-            </tbody>
-          </table>
+              </thead>
+              <tbody className="divide-y divide-slate-800/50">
+                {teams.map((team) => (
+                  <tr key={team.id} className="hover:bg-purple-900/10 transition-colors group">
+                    <td className="p-4 pl-6 font-mono text-purple-400 font-bold">{team.id}</td>
+                    <td className="p-4">
+                      <p className="text-white font-bold">{team.name}</p>
+                      <p className="text-xs text-slate-500">{team.track}</p>
+                    </td>
+                    <td className="p-4 text-slate-300 max-w-[200px] truncate">{team.ps}</td>
+                    <td className="p-4 text-center">
+                      {team.ppt ? (
+                        <a href={team.ppt} target="_blank" rel="noreferrer" className="inline-block px-3 py-1 bg-green-500/10 text-green-400 border border-green-500/30 rounded text-xs font-mono hover:bg-green-500/20 cursor-target">
+                          View PPT ↗
+                        </a>
+                      ) : (
+                        <span className="text-xs text-slate-600 font-mono italic">Not Submitted</span>
+                      )}
+                    </td>
+                    <td className="p-4 text-center">
+                      <span className={`px-2 py-1 rounded text-xs font-bold uppercase tracking-wider border ${
+                        team.status.includes('winner') ? 'bg-yellow-500/20 text-yellow-400 border-yellow-500/50' :
+                        team.status === 'finalist' ? 'bg-fuchsia-500/20 text-fuchsia-400 border-fuchsia-500/50' :
+                        'bg-slate-800 text-slate-400 border-slate-700'
+                      }`}>
+                        {team.status === 'winner_1' ? '🥇 1st Place' : 
+                         team.status === 'winner_2' ? '🥈 2nd Place' : 
+                         team.status === 'winner_3' ? '🥉 3rd Place' : team.status}
+                      </span>
+                    </td>
+                    <td className="p-4 pr-6 text-right space-x-2">
+                      {/* Logic to show different buttons based on current team status */}
+                      
+                      {team.status === 'pending' && team.ppt && (
+                        <button onClick={() => promoteToFinalist(team.id)} className="px-3 py-1 bg-fuchsia-600/20 text-fuchsia-400 hover:bg-fuchsia-600 hover:text-white border border-fuchsia-500/50 rounded text-xs font-bold uppercase transition-all cursor-target">
+                          Promote ↗
+                        </button>
+                      )}
+
+                      {team.status === 'finalist' && (
+                        <div className="inline-flex gap-1">
+                          <button onClick={() => markAsWinner(team.id, '1')} title="1st Place" className="w-8 h-8 flex items-center justify-center bg-yellow-500/10 border border-yellow-500/30 hover:bg-yellow-500/30 text-yellow-400 rounded cursor-target">🥇</button>
+                          <button onClick={() => markAsWinner(team.id, '2')} title="2nd Place" className="w-8 h-8 flex items-center justify-center bg-slate-300/10 border border-slate-400/30 hover:bg-slate-300/30 text-slate-300 rounded cursor-target">🥈</button>
+                          <button onClick={() => markAsWinner(team.id, '3')} title="3rd Place" className="w-8 h-8 flex items-center justify-center bg-orange-500/10 border border-orange-500/30 hover:bg-orange-500/30 text-orange-400 rounded cursor-target">🥉</button>
+                          <button onClick={() => demoteToPending(team.id)} title="Revoke" className="w-8 h-8 flex items-center justify-center bg-red-500/10 border border-red-500/30 hover:bg-red-500/30 text-red-400 rounded ml-2 cursor-target">✕</button>
+                        </div>
+                      )}
+                      
+                      {team.status.includes('winner') && (
+                         <button onClick={() => promoteToFinalist(team.id)} className="px-3 py-1 bg-slate-800 text-slate-400 hover:bg-slate-700 hover:text-white rounded text-xs font-bold uppercase transition-all cursor-target">
+                           Undo
+                         </button>
+                      )}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          )}
         </div>
       </div>
     </div>
