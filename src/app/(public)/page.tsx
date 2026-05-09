@@ -2,6 +2,7 @@ import ScrollReveal from "@/components/ui/ScrollReveal";
 import HeroSection from "@/components/static/HeroSection";
 import DynamicEventSection from "@/components/dynamic/DynamicEventSection";
 import Particles from "@/components/ui/Particles";
+import MasterTimeline from "@/components/dynamic/MasterTimeline";
 
 export default function Home() {
   return (
@@ -121,35 +122,7 @@ export default function Home() {
         </ScrollReveal>
 
         {/* 4. MASTER TIMELINE SECTION */}
-        {/* ✨ Aligned to max-w-5xl */}
-        <section className="scroll-mt-24 max-w-5xl mx-auto px-6 w-full">
-          <ScrollReveal>
-            <h2 className="text-3xl font-black text-slate-100 mb-12 text-center uppercase tracking-tight">Event Timeline</h2>
-          </ScrollReveal>
-          
-          <div className="relative max-w-3xl mx-auto">
-            <div className="absolute left-4 md:left-1/2 top-0 bottom-0 w-[2px] bg-gradient-to-b from-purple-900/0 via-purple-500/50 to-purple-900/0 transform md:-translate-x-1/2 shadow-[0_0_10px_rgba(168,85,247,0.4)]"></div>
-            
-            {[
-              { phase: "Registration Begins", date: "Sept 1, 2025", desc: "Portal opens for team formation." },
-              { phase: "Problem Selection", date: "Sept 20, 2025", desc: "Select your track. First-come, first-serve." },
-              { phase: "PPT Submission", date: "Oct 5, 2025", desc: "Submit your solution architecture and approach." },
-              { phase: "Final Round (Live)", date: "Oct 15, 2025", desc: "48-hour offline building phase begins." },
-            ].map((item, index) => (
-              <ScrollReveal key={index} delay={index * 0.15}>
-                <div className={`relative flex items-center justify-between mb-8 md:mb-12 ${index % 2 === 0 ? 'md:flex-row-reverse' : ''}`}>
-                  <div className="hidden md:block w-5/12"></div>
-                  <div className="absolute left-4 md:left-1/2 w-3 h-3 bg-purple-500 rounded-full transform -translate-x-1.5 md:-translate-x-1.5 shadow-[0_0_10px_rgba(168,85,247,0.8)]"></div>
-                  <div className="ml-12 md:ml-0 w-full md:w-5/12 bg-neutral-900/80 border border-purple-900/50 p-5 rounded-lg hover:border-purple-500/60 transition-colors backdrop-blur-sm cursor-target">
-                    <span className="text-fuchsia-400 text-sm font-mono font-bold">{item.date}</span>
-                    <h4 className="text-lg font-bold text-slate-100 mt-1">{item.phase}</h4>
-                    <p className="text-sm text-slate-400 mt-2">{item.desc}</p>
-                  </div>
-                </div>
-              </ScrollReveal>
-            ))}
-          </div>
-        </section>
+        <MasterTimeline />
 
         {/* 5. DYNAMIC EVENT SECTION */}
         <ScrollReveal>

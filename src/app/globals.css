@@ -37,3 +37,37 @@ body {
     display: none; /* Chrome, Safari and Opera */
   }
 }
+/* =========================================
+   CUSTOM GLOBAL SCROLLBAR
+========================================= */
+
+/* The total width of the scrollbar */
+::-webkit-scrollbar {
+  width: 10px;
+  height: 10px; /* For horizontal scrollbars if needed */
+}
+
+/* The track (background) of the scrollbar */
+::-webkit-scrollbar-track {
+  background: #050505; /* Deep black to match your background */
+}
+
+/* The draggable scrolling handle */
+::-webkit-scrollbar-thumb {
+  background: #3b0764; /* tailwind fuchsia-950/purple-900 */
+  border-radius: 10px;
+  /* Adding a border that matches the track creates a faux-padding effect */
+  border: 2px solid #050505; 
+}
+
+/* When the user hovers over the scrollbar */
+::-webkit-scrollbar-thumb:hover {
+  background: #9333ea; /* tailwind purple-600 */
+  cursor: pointer;
+}
+
+/* For Firefox compatibility */
+* {
+  scrollbar-width: thin;
+  scrollbar-color: #3b0764 #050505;
+}

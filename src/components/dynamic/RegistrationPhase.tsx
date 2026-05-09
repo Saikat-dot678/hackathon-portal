@@ -1,22 +1,42 @@
 "use client";
 
-import { motion, AnimatePresence } from "framer-motion"; // Added AnimatePresence
+import { motion, AnimatePresence } from "framer-motion";
 import { useState } from "react";
 
 export default function RegistrationPhase() {
   const [formData, setFormData] = useState({
     name: "",
+    password: "", // Added password state
     leaderName: "",
     email: "",
     phone: "",
     institution: "",
+    members: [{ name: "", email: "", role: "" }] // Initialize with 1 empty member
   });
   
   const [loading, setLoading] = useState(false);
-  const [isSubmitted, setIsSubmitted] = useState(false); // New state for theme-friendly feedback
+  const [isSubmitted, setIsSubmitted] = useState(false);
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     setFormData({ ...formData, [e.target.name]: e.target.value });
+  };
+
+  // Handlers for dynamic team members
+  const handleMemberChange = (index: number, e: React.ChangeEvent<HTMLInputElement>) => {
+    const newMembers = [...formData.members];
+    newMembers[index] = { ...newMembers[index], [e.target.name]: e.target.value };
+    setFormData({ ...formData, members: newMembers });
+  };
+
+  const addMember = () => {
+    if (formData.members.length < 3) { // Max 4 members total (1 leader + 3 members)
+      setFormData({ ...formData, members: [...formData.members, { name: "", email: "", role: "" }] });
+    }
+  };
+
+  const removeMember = (index: number) => {
+    const newMembers = formData.members.filter((_, i) => i !== index);
+    setFormData({ ...formData, members: newMembers });
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -33,9 +53,9 @@ export default function RegistrationPhase() {
       const result = await response.json();
 
       if (result.success) {
-        setIsSubmitted(true); // Switch to success view instead of alert
+        setIsSubmitted(true);
       } else {
-        alert("Error: " + result.error); // Keep alert only for errors
+        alert("Error: " + result.error);
       }
     } catch (error) {
       console.error("Submission error:", error);
@@ -60,12 +80,12 @@ export default function RegistrationPhase() {
             className="space-y-8" 
             onSubmit={handleSubmit}
           >
-            {/* Team Details */}
+            {/* Team Identity */}
             <div>
               <h3 className="text-xl font-bold text-white mb-4 border-b border-purple-900/50 pb-2 flex items-center gap-2">
                 <span className="w-2 h-2 rounded-full bg-fuchsia-500"></span> Team Identity
               </h3>
-              <div className="grid grid-cols-1 gap-6">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                 <div>
                   <label className="block text-sm font-medium text-slate-300 mb-2">Team Name</label>
                   <input 
@@ -74,6 +94,18 @@ export default function RegistrationPhase() {
                     value={formData.name}
                     onChange={handleChange}
                     placeholder="e.g. Cyber Ninjas" 
+                    className="w-full bg-black/50 border border-purple-900/50 rounded-lg px-4 py-3 text-white placeholder-slate-600 focus:outline-none focus:border-purple-500 focus:ring-1 focus:ring-purple-500 transition-colors" 
+                    required
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-slate-300 mb-2">Team Password (for portal access)</label>
+                  <input 
+                    type="password" 
+                    name="password"
+                    value={formData.password}
+                    onChange={handleChange}
+                    placeholder="Create a secure password" 
                     className="w-full bg-black/50 border border-purple-900/50 rounded-lg px-4 py-3 text-white placeholder-slate-600 focus:outline-none focus:border-purple-500 focus:ring-1 focus:ring-purple-500 transition-colors" 
                     required
                   />
@@ -132,6 +164,58 @@ export default function RegistrationPhase() {
               </div>
             </div>
 
+            {/* Team Members (Dynamic) */}
+            <div>
+              <div className="flex justify-between items-end mb-4 border-b border-purple-900/50 pb-2">
+                <h3 className="text-xl font-bold text-white flex items-center gap-2">
+                  <span className="w-2 h-2 rounded-full bg-fuchsia-500"></span> Team Members
+                </h3>
+                {formData.members.length < 3 && (
+                  <button type="button" onClick={addMember} className="text-xs font-bold text-purple-400 hover:text-purple-300 uppercase tracking-wider bg-purple-900/30 px-3 py-1 rounded">
+                    + Add Member
+                  </button>
+                )}
+              </div>
+              
+              <div className="space-y-4">
+                {formData.members.map((member, index) => (
+                  <div key={index} className="grid grid-cols-1 md:grid-cols-12 gap-4 items-end bg-black/20 p-4 rounded-lg border border-slate-800">
+                    <div className="md:col-span-4">
+                      <label className="block text-xs font-medium text-slate-400 mb-1">Name</label>
+                      <input 
+                        type="text" name="name" value={member.name}
+                        onChange={(e) => handleMemberChange(index, e)}
+                        className="w-full bg-black/50 border border-slate-700 rounded text-sm px-3 py-2 text-white focus:border-purple-500 focus:outline-none" 
+                        required
+                      />
+                    </div>
+                    <div className="md:col-span-4">
+                      <label className="block text-xs font-medium text-slate-400 mb-1">Email</label>
+                      <input 
+                        type="email" name="email" value={member.email}
+                        onChange={(e) => handleMemberChange(index, e)}
+                        className="w-full bg-black/50 border border-slate-700 rounded text-sm px-3 py-2 text-white focus:border-purple-500 focus:outline-none" 
+                        required
+                      />
+                    </div>
+                    <div className="md:col-span-3">
+                      <label className="block text-xs font-medium text-slate-400 mb-1">Role</label>
+                      <input 
+                        type="text" name="role" value={member.role} placeholder="e.g. Frontend"
+                        onChange={(e) => handleMemberChange(index, e)}
+                        className="w-full bg-black/50 border border-slate-700 rounded text-sm px-3 py-2 text-white focus:border-purple-500 focus:outline-none" 
+                      />
+                    </div>
+                    <div className="md:col-span-1 flex justify-end">
+                      <button type="button" onClick={() => removeMember(index)} className="text-red-400 hover:text-red-300 p-2 text-xl font-bold">
+                        ×
+                      </button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+
             {/* Rules & Submission */}
             <div className="pt-4 flex flex-col sm:flex-row items-center justify-between gap-6 border-t border-purple-900/50">
               <label className="flex items-center gap-3 text-sm text-slate-400 cursor-pointer">
@@ -162,7 +246,7 @@ export default function RegistrationPhase() {
               <h2 className="text-3xl font-bold text-white tracking-tighter uppercase">Registration Successful</h2>
               <p className="text-slate-400 text-lg">Welcome to the arena, <span className="text-purple-400 font-semibold">{formData.name}</span>.</p>
             </div>
-            <p className="text-sm text-slate-500 italic">Check your dashboard for upcoming phases.</p>
+            <p className="text-sm text-slate-500 italic">Save your password securely. You will need it to select a problem statement.</p>
             <button 
               onClick={() => setIsSubmitted(false)}
               className="mt-4 text-purple-400 hover:text-purple-300 underline text-sm transition-colors"
