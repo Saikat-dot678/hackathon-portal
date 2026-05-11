@@ -46,6 +46,18 @@ export default function AdminDashboard() {
   });
   const [isSubmittingPS, setIsSubmittingPS] = useState(false);
 
+  // AUTH CHECK
+  useEffect(() => {
+    const token = document.cookie
+      .split('; ')
+      .find(row => row.startsWith('admin_token='))
+      ?.split('=')[1];
+
+    if (token !== process.env.NEXT_PUBLIC_ADMIN_PASSWORD) {
+      window.location.href = '/admin/login';
+    }
+  }, []);
+
   // 1. Fetch Data
   useEffect(() => {
     const fetchSystemState = async () => {
