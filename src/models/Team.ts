@@ -22,6 +22,8 @@ const TeamSchema = new Schema({
 
   status: { type: String, default: 'pending' },
   createdAt: { type: Date, default: Date.now },
+  githubLink: { type: String, default: null },
+  liveLink: { type: String, default: null },
 });
 
 // Prevent re-defining the model during Next.js hot reloads

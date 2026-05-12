@@ -10,6 +10,8 @@ interface Team {
   track: string;
   ps: string;
   ppt: string | null;
+  githubLink?: string;
+  liveLink?: string;
   status: string;
 }
 
@@ -24,16 +26,21 @@ interface ProblemStatement {
   selectedTeamsCount: number;
 }
 
+interface Panel {
+  name: string;
+  judges: string[];
+  schedule: { time: string; team: string; status: string }[];
+}
+
 export default function AdminDashboard() {
-  const [activeTab, setActiveTab] = useState("dashboard"); // 'dashboard', 'databank', 'timeline', 'problems', 'panels'
+  const [activeTab, setActiveTab] = useState("dashboard");
   
   const [activePhase, setActivePhase] = useState("registration");
-  const [liveStage, setLiveStage] = useState("mentoring_2");
+  const [liveStage, setLiveStage] = useState("opening");
   const [currentTime, setCurrentTime] = useState<string>("");
   const [teams, setTeams] = useState<Team[]>([]);
   const [problems, setProblems] = useState<ProblemStatement[]>([]);
 
-  // Forms State
   const [timelineForm, setTimelineForm] = useState({
     registrationStart: "", registrationEnd: "",
     problemSelectionStart: "", problemSelectionEnd: "",
@@ -46,27 +53,19 @@ export default function AdminDashboard() {
   });
   const [isSubmittingPS, setIsSubmittingPS] = useState(false);
 
-  // AUTH CHECK
-  useEffect(() => {
-    const token = document.cookie
-      .split('; ')
-      .find(row => row.startsWith('admin_token='))
-      ?.split('=')[1];
+  // Panel Management States
+  const [panels, setPanels] = useState<Panel[]>([]);
+  const [panelForm, setPanelForm] = useState({ name: "", judges: "" });
+  const [scheduleForm, setScheduleForm] = useState({ panelIdx: 0, time: "", team: "" });
 
-    if (token !== process.env.NEXT_PUBLIC_ADMIN_PASSWORD) {
-      window.location.href = '/admin/login';
-    }
-  }, []);
-
-  // 1. Fetch Data
   useEffect(() => {
     const fetchSystemState = async () => {
       try {
-        const res = await fetch('/api/system');
+        const res = await fetch('/api/system', { cache: 'no-store' });
         const result = await res.json();
         if (result.success && result.data) {
           setActivePhase(result.data.activePhase);
-          setLiveStage(result.data.liveStage);
+          setLiveStage(result.data.liveStage || "opening");
 
           if (result.data.timeline) {
             const formatForInput = (isoString: string) => isoString ? new Date(isoString).toISOString().slice(0, 16) : "";
@@ -80,6 +79,10 @@ export default function AdminDashboard() {
               finalRoundDate: formatForInput(result.data.timeline.finalRoundDate),
             });
           }
+
+          if (result.data.panels) {
+            setPanels(result.data.panels);
+          }
         }
       } catch (error) {
         console.error("Failed to fetch system state:", error);
@@ -88,7 +91,7 @@ export default function AdminDashboard() {
 
     const fetchTeams = async () => {
       try {
-        const res = await fetch('/api/teams');
+        const res = await fetch('/api/teams', { cache: 'no-store' });
         const result = await res.json();
         if (result.success) setTeams(result.data);
       } catch (error) {
@@ -98,7 +101,7 @@ export default function AdminDashboard() {
 
     const fetchProblems = async () => {
       try {
-        const res = await fetch('/api/problems');
+        const res = await fetch('/api/problems', { cache: 'no-store' });
         const result = await res.json();
         if (result.success) setProblems(result.data);
       } catch (error) {
@@ -111,37 +114,34 @@ export default function AdminDashboard() {
     fetchProblems();
 
     setCurrentTime(new Date().toLocaleTimeString('en-US', { hour12: false }));
-    const timer = setInterval(() => {
-      setCurrentTime(new Date().toLocaleTimeString('en-US', { hour12: false }));
-    }, 1000);
+    const timer = setInterval(() => setCurrentTime(new Date().toLocaleTimeString('en-US', { hour12: false })), 1000);
     return () => clearInterval(timer);
   }, []);
 
-  // 2. Action Handlers
   const handlePhaseChange = async (newPhase: string) => {
     setActivePhase(newPhase);
     try {
-      await fetch('/api/system', {
-        method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ activePhase: newPhase })
-      });
+      await fetch('/api/system', { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ activePhase: newPhase }) });
     } catch (error) {
       console.error("Failed to update global phase:", error);
     }
   };
 
+  const handleStageChange = async (newStage: string) => {
+    setLiveStage(newStage);
+    try {
+      await fetch('/api/system', { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ liveStage: newStage }) });
+    } catch (error) {
+      console.error("Failed to update live stage:", error);
+    }
+  };
+
   const handleTimelineSave = async () => {
     try {
-      const res = await fetch('/api/system', {
-        method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ timeline: timelineForm })
-      });
+      const res = await fetch('/api/system', { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ timeline: timelineForm }) });
       if (res.ok) alert("Timeline Synced to Database Successfully!");
     } catch (error) {
       console.error("Failed to save timeline:", error);
-      alert("Error saving timeline.");
     }
   };
 
@@ -149,21 +149,15 @@ export default function AdminDashboard() {
     e.preventDefault();
     setIsSubmittingPS(true);
     try {
-      const res = await fetch('/api/problems', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(psForm)
-      });
+      const res = await fetch('/api/problems', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(psForm) });
       const result = await res.json();
-      
       if (result.success) {
-        setProblems([...problems, result.data]); // Update UI instantly
-        setPsForm({ title: "", domain: "Artificial Intelligence", difficulty: "Beginner", description: "", maxTeams: 5 }); // Reset form
+        setProblems([...problems, result.data]); 
+        setPsForm({ title: "", domain: "Artificial Intelligence", difficulty: "Beginner", description: "", maxTeams: 5 });
         alert("Problem Statement Created Successfully!");
       }
     } catch (error) {
       console.error("Failed to create problem:", error);
-      alert("Error creating problem statement.");
     } finally {
       setIsSubmittingPS(false);
     }
@@ -172,19 +166,74 @@ export default function AdminDashboard() {
   const updateTeamStatus = async (id: string, newStatus: string) => {
     setTeams(teams.map(t => t.id === id ? { ...t, status: newStatus } : t));
     try {
-      await fetch(`/api/teams/${id}`, {
-        method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ status: newStatus })
-      });
+      await fetch(`/api/teams/${id}`, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ status: newStatus }) });
     } catch (error) {
       console.error(`Failed to update team ${id}:`, error);
     }
   };
 
   const promoteToFinalist = (id: string) => updateTeamStatus(id, "finalist");
-  const markAsWinner = (id: string, rank: string) => updateTeamStatus(id, `winner_${rank}`);
   const demoteToPending = (id: string) => updateTeamStatus(id, "pending");
+
+  // Panel Handlers
+  const handleAddPanel = () => {
+    if (!panelForm.name) return;
+    const newPanelObj: Panel = {
+      name: panelForm.name,
+      judges: panelForm.judges.split(',').map(j => j.trim()).filter(j => j !== ""),
+      schedule: []
+    };
+    setPanels([...panels, newPanelObj]);
+    setPanelForm({ name: "", judges: "" });
+  };
+
+  const handleAddSchedule = () => {
+    if (!scheduleForm.time || !scheduleForm.team || panels.length === 0) return;
+    const updatedPanels = [...panels];
+    updatedPanels[scheduleForm.panelIdx].schedule.push({ time: scheduleForm.time, team: scheduleForm.team, status: 'waiting' });
+    
+    updatedPanels[scheduleForm.panelIdx].schedule.sort((a, b) => {
+      const timeA = new Date(`1970/01/01 ${a.time}`).getTime();
+      const timeB = new Date(`1970/01/01 ${b.time}`).getTime();
+      return timeA - timeB;
+    });
+
+    setPanels(updatedPanels);
+    setScheduleForm({ ...scheduleForm, time: "", team: "" });
+  };
+
+  const updateScheduleTime = (panelIdx: number, slotIdx: number, newTime: string) => {
+    const updatedPanels = [...panels];
+    updatedPanels[panelIdx].schedule[slotIdx].time = newTime;
+    
+    updatedPanels[panelIdx].schedule.sort((a, b) => {
+      const timeA = new Date(`1970/01/01 ${a.time}`).getTime();
+      const timeB = new Date(`1970/01/01 ${b.time}`).getTime();
+      return timeA - timeB;
+    });
+    setPanels(updatedPanels);
+  };
+
+  const updateScheduleStatus = (panelIdx: number, slotIdx: number, newStatus: string) => {
+    const updatedPanels = [...panels];
+    updatedPanels[panelIdx].schedule[slotIdx].status = newStatus;
+    setPanels(updatedPanels);
+  };
+
+  const removeScheduleSlot = (panelIdx: number, slotIdx: number) => {
+    const updatedPanels = [...panels];
+    updatedPanels[panelIdx].schedule.splice(slotIdx, 1);
+    setPanels(updatedPanels);
+  };
+
+  const handleSavePanelsToDB = async () => {
+    try {
+      const res = await fetch('/api/system', { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ panels }) });
+      if (res.ok) alert("Judging Panels successfully synced to the live portal!");
+    } catch (error) {
+      console.error("Failed to save panels:", error);
+    }
+  };
 
   const phases = [
     { id: "locked", name: "System Locked", color: "text-red-400 border-red-500/50 bg-red-500/10" },
@@ -200,7 +249,7 @@ export default function AdminDashboard() {
     { id: 'databank', label: 'Team Databank' },
     { id: 'timeline', label: 'Timeline Config' },
     { id: 'problems', label: 'Problem Statements' },
-    { id: 'panels', label: 'Judging Panels' },
+    { id: 'panels', label: 'Judging Panels & Winners' },
   ];
 
   return (
@@ -223,8 +272,7 @@ export default function AdminDashboard() {
           </div>
         </div>
 
-        {/* Navigation Tabs */}
-        <div className="flex gap-2 mt-6 overflow-x-auto hide-scrollbar">
+        <div className="flex gap-2 mt-6 overflow-x-auto hide-scrollbar pb-2">
           {tabs.map((tab) => (
             <button
               key={tab.id}
@@ -241,11 +289,10 @@ export default function AdminDashboard() {
         </div>
       </header>
 
-      {/* =========================================
-          TAB 1: LIVE DASHBOARD
-      ========================================= */}
+      {/* DASHBOARD TAB */}
       {activeTab === 'dashboard' && (
         <div className="max-w-7xl mx-auto grid grid-cols-1 lg:grid-cols-3 gap-8 relative z-10 animate-in fade-in slide-in-from-bottom-4 duration-500">
+          
           <div className="lg:col-span-2 space-y-8">
             <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
               {[
@@ -299,12 +346,20 @@ export default function AdminDashboard() {
                 <span className="w-2 h-2 bg-white rounded-full"></span> Live Stage Control
               </h2>
               <div className="bg-black border border-slate-800 rounded-lg p-4 mb-4">
-                <p className="text-xs text-slate-500 uppercase tracking-widest mb-1">Current Stage</p>
-                <p className="text-lg font-bold text-fuchsia-400">{liveStage.replace('_', ' ').toUpperCase()}</p>
+                <p className="text-xs text-slate-500 uppercase tracking-widest mb-2">Current Stage</p>
+                <select 
+                  value={liveStage}
+                  onChange={(e) => handleStageChange(e.target.value)}
+                  className="w-full bg-neutral-900 border border-fuchsia-500/50 text-fuchsia-400 font-bold rounded px-3 py-3 text-sm focus:outline-none focus:border-fuchsia-500 uppercase tracking-wider cursor-pointer"
+                >
+                  <option value="opening">Opening Ceremony</option>
+                  <option value="mentoring_1">Mentoring Session 1</option>
+                  <option value="mentoring_2">Mentoring Session 2</option>
+                  <option value="judge_review">Judge Review</option>
+                  <option value="final_judging">Final Judging Round</option>
+                  <option value="winners">Winner Announcement</option>
+                </select>
               </div>
-              <button className="w-full py-3 bg-fuchsia-600 hover:bg-fuchsia-500 text-white font-bold text-sm uppercase tracking-widest rounded-lg transition-colors cursor-target shadow-[0_0_15px_rgba(217,70,239,0.4)]">
-                Advance Stage ↗
-              </button>
             </motion.div>
 
             <div className="bg-[#0a0a0a] border border-slate-800 rounded-2xl p-6 h-[250px] flex flex-col font-mono text-xs shadow-inner">
@@ -326,26 +381,17 @@ export default function AdminDashboard() {
         </div>
       )}
 
-      {/* =========================================
-          TAB 2: TEAM DATABANK
-      ========================================= */}
+      {/* DATABANK TAB */}
       {activeTab === 'databank' && (
         <div className="max-w-7xl mx-auto bg-[#0a0a0a] border border-slate-800 rounded-2xl overflow-hidden relative z-10 shadow-xl animate-in fade-in slide-in-from-bottom-4 duration-500">
           <div className="p-6 border-b border-slate-800 bg-neutral-900/50 flex flex-col sm:flex-row justify-between items-center gap-4">
             <h2 className="text-xl font-black text-white uppercase tracking-widest flex items-center gap-3">
               <span className="w-2 h-2 bg-purple-500 rounded-full"></span> Master Roster
             </h2>
-            <div className="flex gap-2 w-full sm:w-auto">
-              <input type="text" placeholder="Search ID or Name..." className="bg-black border border-slate-700 text-sm px-4 py-2 rounded-lg font-mono focus:outline-none focus:border-purple-500 w-full sm:w-64" />
-              <button className="bg-slate-800 hover:bg-slate-700 px-4 py-2 rounded-lg text-sm font-bold uppercase cursor-target transition-colors">Filter</button>
-            </div>
           </div>
-
           <div className="overflow-x-auto hide-scrollbar">
             {teams.length === 0 ? (
-              <div className="p-12 text-center text-slate-500 font-mono text-sm">
-                No teams registered yet.
-              </div>
+              <div className="p-12 text-center text-slate-500 font-mono text-sm">No teams registered yet.</div>
             ) : (
               <table className="w-full text-left text-sm whitespace-nowrap">
                 <thead className="bg-neutral-900 text-slate-400 font-mono text-xs uppercase tracking-widest border-b border-slate-800">
@@ -379,30 +425,23 @@ export default function AdminDashboard() {
                       <td className="p-4 text-center">
                         <span className={`px-2 py-1 rounded text-xs font-bold uppercase tracking-wider border ${
                           team.status.includes('winner') ? 'bg-yellow-500/20 text-yellow-400 border-yellow-500/50' :
-                          team.status === 'finalist' ? 'bg-fuchsia-500/20 text-fuchsia-400 border-fuchsia-500/50' :
+                          team.status === 'finalist' || team.status === 'COMPLETED' ? 'bg-fuchsia-500/20 text-fuchsia-400 border-fuchsia-500/50' :
                           'bg-slate-800 text-slate-400 border-slate-700'
                         }`}>
                           {team.status.replace('_', ' ')}
                         </span>
                       </td>
                       <td className="p-4 pr-6 text-right space-x-2">
-                        {team.status === 'pending' && (
+                        {(team.status === 'pending' || team.status === 'SUBMITTED' || team.status === 'PROBLEM_SELECTED') ? (
                           <button onClick={() => promoteToFinalist(team.id)} className="px-3 py-1 bg-fuchsia-600/20 text-fuchsia-400 hover:bg-fuchsia-600 hover:text-white border border-fuchsia-500/50 rounded text-xs font-bold uppercase transition-all cursor-target">
-                            Promote
+                            Promote to Finalist
                           </button>
-                        )}
-                        {team.status === 'finalist' && (
-                          <div className="inline-flex gap-1">
-                            <button onClick={() => markAsWinner(team.id, '1')} title="1st Place" className="w-8 h-8 flex items-center justify-center bg-yellow-500/10 border border-yellow-500/30 hover:bg-yellow-500/30 text-yellow-400 rounded cursor-target">🥇</button>
-                            <button onClick={() => markAsWinner(team.id, '2')} title="2nd Place" className="w-8 h-8 flex items-center justify-center bg-slate-300/10 border border-slate-400/30 hover:bg-slate-300/30 text-slate-300 rounded cursor-target">🥈</button>
-                            <button onClick={() => markAsWinner(team.id, '3')} title="3rd Place" className="w-8 h-8 flex items-center justify-center bg-orange-500/10 border border-orange-500/30 hover:bg-orange-500/30 text-orange-400 rounded cursor-target">🥉</button>
-                            <button onClick={() => demoteToPending(team.id)} title="Revoke" className="w-8 h-8 flex items-center justify-center bg-red-500/10 border border-red-500/30 hover:bg-red-500/30 text-red-400 rounded ml-2 cursor-target">✕</button>
-                          </div>
-                        )}
-                        {team.status.includes('winner') && (
-                           <button onClick={() => promoteToFinalist(team.id)} className="px-3 py-1 bg-slate-800 text-slate-400 hover:bg-slate-700 hover:text-white rounded text-xs font-bold uppercase transition-all cursor-target">
-                             Undo
-                           </button>
+                        ) : team.status === 'finalist' ? (
+                          <button onClick={() => demoteToPending(team.id)} className="px-3 py-1 bg-red-500/10 border border-red-500/30 hover:bg-red-500/30 text-red-400 rounded cursor-target uppercase font-bold text-xs tracking-wider">
+                             Revoke
+                          </button>
+                        ) : (
+                          <span className="text-xs text-slate-600 uppercase font-bold tracking-widest">Locked</span>
                         )}
                       </td>
                     </tr>
@@ -414,23 +453,17 @@ export default function AdminDashboard() {
         </div>
       )}
 
-      {/* =========================================
-          TAB 3: TIMELINE CONFIGURATION
-      ========================================= */}
+      {/* TIMELINE TAB */}
       {activeTab === 'timeline' && (
         <div className="max-w-4xl mx-auto bg-neutral-900/60 border border-purple-900/50 rounded-2xl p-6 md:p-10 backdrop-blur-sm animate-in fade-in slide-in-from-bottom-4 duration-500">
           <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-8 border-b border-purple-900/50 pb-4 gap-4">
             <h2 className="text-xl font-black text-white uppercase tracking-widest flex items-center gap-3">
               <span className="w-2 h-2 bg-fuchsia-500 rounded-full"></span> Global Timeline Sync
             </h2>
-            <button 
-              onClick={handleTimelineSave}
-              className="px-6 py-2 bg-purple-600 hover:bg-purple-500 text-white text-xs font-bold uppercase tracking-widest rounded transition-colors shadow-[0_0_15px_rgba(147,51,234,0.4)]"
-            >
+            <button onClick={handleTimelineSave} className="px-6 py-2 bg-purple-600 hover:bg-purple-500 text-white text-xs font-bold uppercase tracking-widest rounded transition-colors shadow-[0_0_15px_rgba(147,51,234,0.4)]">
               Save Dates
             </button>
           </div>
-
           <div className="space-y-8">
             {[
               { title: "Registration Phase", start: "registrationStart", end: "registrationEnd" },
@@ -442,49 +475,29 @@ export default function AdminDashboard() {
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <div>
                     <label className="block text-xs text-slate-500 mb-1 font-mono uppercase">Start Date & Time</label>
-                    <input 
-                      type="datetime-local" 
-                      value={timelineForm[phase.start as keyof typeof timelineForm]}
-                      onChange={(e) => setTimelineForm({...timelineForm, [phase.start]: e.target.value})}
-                      className="w-full bg-neutral-900 border border-slate-700 text-slate-300 rounded px-3 py-2 text-sm focus:border-purple-500 focus:outline-none" 
-                    />
+                    <input type="datetime-local" value={timelineForm[phase.start as keyof typeof timelineForm]} onChange={(e) => setTimelineForm({...timelineForm, [phase.start]: e.target.value})} className="w-full bg-neutral-900 border border-slate-700 text-slate-300 rounded px-3 py-2 text-sm focus:border-purple-500 focus:outline-none" />
                   </div>
                   <div>
                     <label className="block text-xs text-slate-500 mb-1 font-mono uppercase">End Date & Time</label>
-                    <input 
-                      type="datetime-local" 
-                      value={timelineForm[phase.end as keyof typeof timelineForm]}
-                      onChange={(e) => setTimelineForm({...timelineForm, [phase.end]: e.target.value})}
-                      className="w-full bg-neutral-900 border border-slate-700 text-slate-300 rounded px-3 py-2 text-sm focus:border-purple-500 focus:outline-none" 
-                    />
+                    <input type="datetime-local" value={timelineForm[phase.end as keyof typeof timelineForm]} onChange={(e) => setTimelineForm({...timelineForm, [phase.end]: e.target.value})} className="w-full bg-neutral-900 border border-slate-700 text-slate-300 rounded px-3 py-2 text-sm focus:border-purple-500 focus:outline-none" />
                   </div>
                 </div>
               </div>
             ))}
-
             <div className="bg-black/50 border border-slate-800 p-5 rounded-xl">
               <h3 className="text-sm font-bold text-fuchsia-400 uppercase tracking-widest mb-4">Live Final Round</h3>
               <div>
                 <label className="block text-xs text-slate-500 mb-1 font-mono uppercase">Event Kickoff Date</label>
-                <input 
-                  type="datetime-local" 
-                  value={timelineForm.finalRoundDate}
-                  onChange={(e) => setTimelineForm({...timelineForm, finalRoundDate: e.target.value})}
-                  className="w-full max-w-sm bg-neutral-900 border border-slate-700 text-slate-300 rounded px-3 py-2 text-sm focus:border-fuchsia-500 focus:outline-none" 
-                />
+                <input type="datetime-local" value={timelineForm.finalRoundDate} onChange={(e) => setTimelineForm({...timelineForm, finalRoundDate: e.target.value})} className="w-full max-w-sm bg-neutral-900 border border-slate-700 text-slate-300 rounded px-3 py-2 text-sm focus:border-fuchsia-500 focus:outline-none" />
               </div>
             </div>
           </div>
         </div>
       )}
 
-      {/* =========================================
-          TAB 4: PROBLEM STATEMENTS
-      ========================================= */}
+      {/* PROBLEMS TAB */}
       {activeTab === 'problems' && (
         <div className="max-w-7xl mx-auto space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-500">
-          
-          {/* Create Form */}
           <div className="bg-neutral-900/60 border border-purple-900/50 rounded-2xl p-6 md:p-10 backdrop-blur-sm">
             <h2 className="text-xl font-black text-white uppercase tracking-widest mb-6 flex items-center gap-3 border-b border-purple-900/50 pb-4">
               <span className="w-2 h-2 bg-fuchsia-500 rounded-full"></span> Add Problem Statement
@@ -494,19 +507,12 @@ export default function AdminDashboard() {
               <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                 <div className="md:col-span-2">
                   <label className="block text-xs text-slate-400 uppercase font-bold mb-2">Problem Title</label>
-                  <input 
-                    type="text" required value={psForm.title} onChange={(e) => setPsForm({...psForm, title: e.target.value})}
-                    className="w-full bg-black/50 border border-slate-700 rounded-lg px-4 py-3 text-white focus:border-purple-500 focus:outline-none" 
-                    placeholder="e.g., AI-Powered Predictive Healthcare"
-                  />
+                  <input type="text" required value={psForm.title} onChange={(e) => setPsForm({...psForm, title: e.target.value})} className="w-full bg-black/50 border border-slate-700 rounded-lg px-4 py-3 text-white focus:border-purple-500 focus:outline-none" />
                 </div>
                 
                 <div>
                   <label className="block text-xs text-slate-400 uppercase font-bold mb-2">Technical Domain</label>
-                  <select 
-                    value={psForm.domain} onChange={(e) => setPsForm({...psForm, domain: e.target.value})}
-                    className="w-full bg-black/50 border border-slate-700 rounded-lg px-4 py-3 text-white focus:border-purple-500 focus:outline-none"
-                  >
+                  <select value={psForm.domain} onChange={(e) => setPsForm({...psForm, domain: e.target.value})} className="w-full bg-black/50 border border-slate-700 rounded-lg px-4 py-3 text-white focus:border-purple-500 focus:outline-none">
                     <option value="Artificial Intelligence">Artificial Intelligence</option>
                     <option value="Web Development">Web Development</option>
                     <option value="Internet of Things">Internet of Things</option>
@@ -518,46 +524,32 @@ export default function AdminDashboard() {
                 <div className="grid grid-cols-2 gap-4">
                   <div>
                     <label className="block text-xs text-slate-400 uppercase font-bold mb-2">Difficulty</label>
-                    <select 
-                      value={psForm.difficulty} onChange={(e) => setPsForm({...psForm, difficulty: e.target.value})}
-                      className="w-full bg-black/50 border border-slate-700 rounded-lg px-4 py-3 text-white focus:border-purple-500 focus:outline-none"
-                    >
+                    <select value={psForm.difficulty} onChange={(e) => setPsForm({...psForm, difficulty: e.target.value})} className="w-full bg-black/50 border border-slate-700 rounded-lg px-4 py-3 text-white focus:border-purple-500 focus:outline-none">
                       <option value="Beginner">Beginner</option>
                       <option value="Intermediate">Intermediate</option>
                       <option value="Advanced">Advanced</option>
                     </select>
                   </div>
                   <div>
-                    <label className="block text-xs text-slate-400 uppercase font-bold mb-2">Max Teams (Capacity)</label>
-                    <input 
-                      type="number" min="1" required value={psForm.maxTeams} onChange={(e) => setPsForm({...psForm, maxTeams: parseInt(e.target.value)})}
-                      className="w-full bg-black/50 border border-slate-700 rounded-lg px-4 py-3 text-white focus:border-purple-500 focus:outline-none" 
-                    />
+                    <label className="block text-xs text-slate-400 uppercase font-bold mb-2">Capacity</label>
+                    <input type="number" min="1" required value={psForm.maxTeams} onChange={(e) => setPsForm({...psForm, maxTeams: parseInt(e.target.value) || 5})} className="w-full bg-black/50 border border-slate-700 rounded-lg px-4 py-3 text-white focus:border-purple-500 focus:outline-none" />
                   </div>
                 </div>
 
                 <div className="md:col-span-2">
-                  <label className="block text-xs text-slate-400 uppercase font-bold mb-2">Brief Description</label>
-                  <textarea 
-                    required rows={3} value={psForm.description} onChange={(e) => setPsForm({...psForm, description: e.target.value})}
-                    className="w-full bg-black/50 border border-slate-700 rounded-lg px-4 py-3 text-white focus:border-purple-500 focus:outline-none" 
-                    placeholder="Describe the challenge parameters..."
-                  ></textarea>
+                  <label className="block text-xs text-slate-400 uppercase font-bold mb-2">Description</label>
+                  <textarea required rows={3} value={psForm.description} onChange={(e) => setPsForm({...psForm, description: e.target.value})} className="w-full bg-black/50 border border-slate-700 rounded-lg px-4 py-3 text-white focus:border-purple-500 focus:outline-none"></textarea>
                 </div>
               </div>
 
               <div className="flex justify-end pt-4">
-                <button 
-                  type="submit" disabled={isSubmittingPS}
-                  className="px-8 py-3 bg-purple-600 hover:bg-purple-500 text-white font-bold uppercase tracking-widest rounded-lg transition-colors shadow-[0_0_15px_rgba(147,51,234,0.4)] disabled:opacity-50"
-                >
-                  {isSubmittingPS ? "Adding..." : "Publish Statement ↗"}
+                <button type="submit" disabled={isSubmittingPS} className="px-8 py-3 bg-purple-600 hover:bg-purple-500 text-white font-bold uppercase tracking-widest rounded-lg transition-colors shadow-[0_0_15px_rgba(147,51,234,0.4)]">
+                  {isSubmittingPS ? "Adding..." : "Publish Statement"}
                 </button>
               </div>
             </form>
           </div>
 
-          {/* Existing Statements Table */}
           <div className="bg-[#0a0a0a] border border-slate-800 rounded-2xl overflow-hidden shadow-xl">
             <div className="p-6 border-b border-slate-800 bg-neutral-900/50">
               <h2 className="text-xl font-black text-white uppercase tracking-widest flex items-center gap-3">
@@ -591,8 +583,7 @@ export default function AdminDashboard() {
                           <td className="p-4 text-center">
                             <span className={`px-2 py-1 rounded text-xs font-bold uppercase ${
                               ps.difficulty === 'Beginner' ? 'text-green-400 bg-green-400/10' :
-                              ps.difficulty === 'Intermediate' ? 'text-yellow-400 bg-yellow-400/10' :
-                              'text-red-400 bg-red-400/10'
+                              ps.difficulty === 'Intermediate' ? 'text-yellow-400 bg-yellow-400/10' : 'text-red-400 bg-red-400/10'
                             }`}>
                               {ps.difficulty}
                             </span>
@@ -602,7 +593,6 @@ export default function AdminDashboard() {
                               <span className={`font-mono text-lg font-bold ${isFull ? 'text-red-500' : 'text-slate-300'}`}>
                                 {ps.selectedTeamsCount} <span className="text-slate-600 text-sm">/ {ps.maxTeams}</span>
                               </span>
-                              {isFull && <span className="text-[10px] uppercase font-bold text-red-500 tracking-wider">Locked</span>}
                             </div>
                           </td>
                         </tr>
@@ -613,21 +603,213 @@ export default function AdminDashboard() {
               )}
             </div>
           </div>
-
         </div>
       )}
 
       {/* =========================================
-          TAB 5: JUDGING PANELS (COMING SOON)
+          TAB 5: JUDGING PANELS & WINNER SELECTION
       ========================================= */}
       {activeTab === 'panels' && (
-        <div className="max-w-4xl mx-auto bg-neutral-900/60 border border-dashed border-slate-700 rounded-2xl p-12 text-center animate-in fade-in slide-in-from-bottom-4 duration-500">
-          <div className="text-4xl mb-4">⚖️</div>
-          <h2 className="text-xl font-black text-white uppercase tracking-widest mb-2">Panel Management</h2>
-          <p className="text-slate-500 font-mono text-sm">Module under construction.</p>
+        <div className="max-w-7xl mx-auto space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-500">
+          
+          {/* --- PART A: PANEL BUILDER --- */}
+          <div className="bg-neutral-900/60 border border-blue-900/50 rounded-2xl p-6 md:p-8 backdrop-blur-sm shadow-xl">
+            <div className="flex justify-between items-center border-b border-blue-900/50 pb-4 mb-6">
+              <h2 className="text-xl font-black text-white uppercase tracking-widest flex items-center gap-3">
+                <span className="w-2 h-2 bg-blue-500 rounded-full"></span> Judging Panel Builder
+              </h2>
+              <button 
+                onClick={handleSavePanelsToDB}
+                className="px-4 py-2 bg-blue-600 hover:bg-blue-500 text-white text-xs font-bold uppercase tracking-widest rounded transition-colors shadow-[0_0_15px_rgba(59,130,246,0.4)]"
+              >
+                Sync Panels to Public Portal ↗
+              </button>
+            </div>
+
+            <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+              {/* Add New Panel Form */}
+              <div className="lg:col-span-1 space-y-4 bg-black/50 p-6 rounded-xl border border-slate-800">
+                <h3 className="text-sm font-bold text-blue-400 uppercase tracking-widest mb-4">Create New Panel</h3>
+                <div>
+                  <label className="block text-xs font-bold text-slate-400 uppercase mb-2">Panel Name</label>
+                  <input type="text" value={panelForm.name} onChange={e => setPanelForm({...panelForm, name: e.target.value})} className="w-full bg-neutral-900 border border-slate-700 rounded px-3 py-2 text-sm text-white focus:border-blue-500 outline-none" placeholder="e.g. Alpha Panel" />
+                </div>
+                <div>
+                  <label className="block text-xs font-bold text-slate-400 uppercase mb-2">Judges (Comma separated)</label>
+                  <input type="text" value={panelForm.judges} onChange={e => setPanelForm({...panelForm, judges: e.target.value})} className="w-full bg-neutral-900 border border-slate-700 rounded px-3 py-2 text-sm text-white focus:border-blue-500 outline-none" placeholder="Sarah Chen, David Kim" />
+                </div>
+                <button onClick={handleAddPanel} className="w-full py-2 mt-2 bg-slate-800 hover:bg-slate-700 text-white text-xs font-bold uppercase rounded transition-colors">
+                  Create Panel
+                </button>
+              </div>
+
+              {/* Assign Teams to Schedule Form */}
+              <div className="lg:col-span-2 space-y-4 bg-black/50 p-6 rounded-xl border border-slate-800">
+                <h3 className="text-sm font-bold text-fuchsia-400 uppercase tracking-widest mb-4">Assign Teams to Schedule</h3>
+                
+                {panels.length === 0 ? (
+                  <p className="text-slate-500 text-sm font-mono">Create a panel first to start scheduling teams.</p>
+                ) : (
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-4 items-end">
+                    <div>
+                      <label className="block text-xs font-bold text-slate-400 uppercase mb-2">Select Panel</label>
+                      <select value={scheduleForm.panelIdx} onChange={e => setScheduleForm({...scheduleForm, panelIdx: parseInt(e.target.value)})} className="w-full bg-neutral-900 border border-slate-700 rounded px-3 py-2 text-sm text-white focus:border-fuchsia-500 outline-none">
+                        {panels.map((p, i) => <option key={i} value={i}>{p.name}</option>)}
+                      </select>
+                    </div>
+                    <div>
+                      <label className="block text-xs font-bold text-slate-400 uppercase mb-2">Select Team</label>
+                      <select value={scheduleForm.team} onChange={e => setScheduleForm({...scheduleForm, team: e.target.value})} className="w-full bg-neutral-900 border border-slate-700 rounded px-3 py-2 text-sm text-white focus:border-fuchsia-500 outline-none">
+                        <option value="">-- Choose Team --</option>
+                        {teams.filter(t => t.status === 'finalist' || t.status === 'COMPLETED').map(t => (
+                          <option key={t.id} value={t.name}>{t.name} ({t.track})</option>
+                        ))}
+                      </select>
+                    </div>
+                    <div>
+                      <label className="block text-xs font-bold text-slate-400 uppercase mb-2">Time (e.g. 10:00 AM)</label>
+                      <div className="flex gap-2">
+                        <input type="time" value={scheduleForm.time} onChange={e => setScheduleForm({...scheduleForm, time: e.target.value})} className="w-full bg-neutral-900 border border-slate-700 rounded px-3 py-2 text-sm text-white focus:border-fuchsia-500 outline-none" />
+                        <button onClick={handleAddSchedule} className="px-4 py-2 bg-fuchsia-600 hover:bg-fuchsia-500 text-white text-xs font-bold uppercase rounded transition-colors">Add</button>
+                      </div>
+                    </div>
+                  </div>
+                )}
+              </div>
+            </div>
+
+            {/* Current Panels Preview */}
+            {panels.length > 0 && (
+              <div className="mt-8 grid grid-cols-1 md:grid-cols-2 gap-6">
+                {panels.map((p, idx) => (
+                  <div key={idx} className="border border-slate-800 rounded-lg p-4 bg-black">
+                    <div className="flex justify-between items-center mb-2">
+                      <h4 className="text-white font-bold uppercase tracking-wider">{p.name}</h4>
+                      <button onClick={() => setPanels(panels.filter((_, i) => i !== idx))} className="text-xs text-red-500 hover:text-red-400 font-bold uppercase">Delete Panel</button>
+                    </div>
+                    <p className="text-xs text-slate-500 mb-4 font-mono">Judges: {p.judges.join(', ')}</p>
+                    
+                    <div className="space-y-2">
+                      {p.schedule.map((slot, sIdx) => (
+                        <div key={sIdx} className="flex flex-col xl:flex-row xl:items-center justify-between text-xs bg-neutral-900 p-2 rounded border border-slate-800 gap-3">
+                          
+                          <div className="flex items-center gap-3">
+                            {/* Editable Time Input */}
+                            <input 
+                              type="time" 
+                              value={slot.time} 
+                              onChange={(e) => updateScheduleTime(idx, sIdx, e.target.value)} 
+                              className="bg-black border border-slate-700 text-purple-400 font-mono font-bold px-2 py-1 rounded outline-none focus:border-purple-500 cursor-text" 
+                            />
+                            <span className="text-slate-300 font-bold">{slot.team}</span>
+                          </div>
+                          
+                          <div className="flex items-center gap-2 justify-between xl:justify-end">
+                            {/* Admin Status Dropdown */}
+                            <select 
+                              value={slot.status || 'waiting'} 
+                              onChange={(e) => updateScheduleStatus(idx, sIdx, e.target.value)} 
+                              className={`bg-black border border-slate-700 px-2 py-1 rounded outline-none focus:border-purple-500 uppercase tracking-widest font-bold text-[10px] cursor-pointer ${
+                                slot.status === 'evaluated' ? 'text-green-400' :
+                                slot.status === 'up_next' ? 'text-purple-400' : 'text-slate-500'
+                              }`}
+                            >
+                              <option value="waiting">Waiting</option>
+                              <option value="up_next">Up Next</option>
+                              <option value="evaluated">Evaluated</option>
+                            </select>
+                            
+                            <button onClick={() => removeScheduleSlot(idx, sIdx)} className="text-red-500 hover:text-red-400 font-bold ml-1 px-2 py-1 bg-red-500/10 rounded">✕</button>
+                          </div>
+
+                        </div>
+                      ))}
+                      {p.schedule.length === 0 && <p className="text-xs text-slate-600 italic">No teams assigned yet.</p>}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+
+          {/* --- PART B: WINNER SELECTION --- */}
+          <div className="bg-[#0a0a0a] border border-yellow-900/50 rounded-2xl overflow-hidden relative z-10 shadow-xl">
+            <div className="p-6 border-b border-slate-800 bg-neutral-900/50">
+              <h2 className="text-xl font-black text-transparent bg-clip-text bg-gradient-to-r from-yellow-400 to-yellow-600 uppercase tracking-widest flex items-center gap-3">
+                <span className="text-2xl">🏆</span> Winner Selection & Final Review
+              </h2>
+              <p className="text-slate-400 text-sm mt-2">
+                Review completed projects and officially crown the champions. Assigning a winner here will immediately reflect on the public Winner Announcement phase.
+              </p>
+            </div>
+
+            <div className="overflow-x-auto hide-scrollbar">
+              {teams.filter(t => t.status === 'COMPLETED' || t.status.includes('winner')).length === 0 ? (
+                <div className="p-12 text-center text-slate-500 font-mono text-sm">
+                  Waiting for finalists to submit their final repositories.
+                </div>
+              ) : (
+                <table className="w-full text-left text-sm whitespace-nowrap">
+                  <thead className="bg-neutral-900 text-slate-400 font-mono text-xs uppercase tracking-widest border-b border-slate-800">
+                    <tr>
+                      <th className="p-4 pl-6">Team Details</th>
+                      <th className="p-4">Track / Problem</th>
+                      <th className="p-4 text-center">Repository</th>
+                      <th className="p-4 text-center">Live Demo</th>
+                      <th className="p-4 text-center">Official Status</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-slate-800/50">
+                    {teams.filter(t => t.status === 'COMPLETED' || t.status.includes('winner')).map((team) => (
+                      <tr key={team.id} className={`transition-colors group ${team.status.includes('winner') ? 'bg-yellow-900/10' : 'hover:bg-neutral-900'}`}>
+                        <td className="p-4 pl-6">
+                          <p className="text-white font-bold">{team.name}</p>
+                          <p className="font-mono text-slate-500 text-xs">{team.id}</p>
+                        </td>
+                        <td className="p-4">
+                          <p className="text-slate-300 text-xs font-bold uppercase tracking-wide">{team.track}</p>
+                          <p className="text-slate-500 text-xs max-w-[200px] truncate" title={team.ps}>{team.ps}</p>
+                        </td>
+                        <td className="p-4 text-center">
+                          {team.githubLink ? (
+                            <a href={team.githubLink} target="_blank" rel="noreferrer" className="inline-block px-3 py-1 bg-slate-800 text-slate-300 border border-slate-600 hover:bg-slate-700 hover:text-white rounded text-xs font-mono transition-colors">
+                              GitHub ↗
+                            </a>
+                          ) : <span className="text-xs text-slate-600 italic">Missing</span>}
+                        </td>
+                        <td className="p-4 text-center">
+                          {team.liveLink ? (
+                            <a href={team.liveLink} target="_blank" rel="noreferrer" className="inline-block px-3 py-1 bg-blue-500/10 text-blue-400 border border-blue-500/30 hover:bg-blue-500/20 hover:text-blue-300 rounded text-xs font-mono transition-colors">
+                              Demo ↗
+                            </a>
+                          ) : <span className="text-xs text-slate-600 italic">Missing</span>}
+                        </td>
+                        <td className="p-4 text-center">
+                          <select 
+                            value={team.status}
+                            onChange={(e) => updateTeamStatus(team.id, e.target.value)}
+                            className={`px-4 py-2 rounded-lg text-xs font-bold uppercase tracking-wider outline-none border cursor-pointer ${
+                              team.status.includes('winner') 
+                                ? 'bg-yellow-500/10 text-yellow-500 border-yellow-500/50 shadow-[0_0_15px_rgba(234,179,8,0.2)]' 
+                                : 'bg-black text-slate-400 border-slate-700'
+                            }`}
+                          >
+                            <option value="COMPLETED">Under Review</option>
+                            <option value="winner_1">🥇 1st Place Winner</option>
+                            <option value="winner_2">🥈 2nd Place Winner</option>
+                            <option value="winner_3">🥉 3rd Place Winner</option>
+                          </select>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              )}
+            </div>
+          </div>
+
         </div>
       )}
-
     </div>
   );
 }
