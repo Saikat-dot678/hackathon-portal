@@ -52,6 +52,9 @@ export default function AdminDashboard() {
     title: "", domain: "Artificial Intelligence", difficulty: "Beginner", description: "", maxTeams: 5
   });
   const [isSubmittingPS, setIsSubmittingPS] = useState(false);
+  
+  // --- NEW: Problem Statement Edit State ---
+  const [editingPsId, setEditingPsId] = useState<string | null>(null);
 
   // Panel Management States
   const [panels, setPanels] = useState<Panel[]>([]);
@@ -145,21 +148,75 @@ export default function AdminDashboard() {
     }
   };
 
-  const handleCreateProblem = async (e: React.FormEvent) => {
+  // --- UPDATED: Handle Create AND Edit Problem Statements ---
+  const handleSubmitProblem = async (e: React.FormEvent) => {
     e.preventDefault();
     setIsSubmittingPS(true);
     try {
-      const res = await fetch('/api/problems', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(psForm) });
-      const result = await res.json();
-      if (result.success) {
-        setProblems([...problems, result.data]); 
-        setPsForm({ title: "", domain: "Artificial Intelligence", difficulty: "Beginner", description: "", maxTeams: 5 });
-        alert("Problem Statement Created Successfully!");
+      if (editingPsId) {
+        // Update existing
+        const res = await fetch(`/api/problems/${editingPsId}`, { 
+          method: 'PATCH', 
+          headers: { 'Content-Type': 'application/json' }, 
+          body: JSON.stringify(psForm) 
+        });
+        const result = await res.json();
+        if (result.success) {
+          // Update the local state
+          setProblems(problems.map(p => p.psId === editingPsId ? { ...p, ...psForm } : p)); 
+          cancelEditProblem();
+          alert("Problem Statement Updated Successfully!");
+        }
+      } else {
+        // Create new
+        const res = await fetch('/api/problems', { 
+          method: 'POST', 
+          headers: { 'Content-Type': 'application/json' }, 
+          body: JSON.stringify(psForm) 
+        });
+        const result = await res.json();
+        if (result.success) {
+          setProblems([...problems, result.data]); 
+          cancelEditProblem();
+          alert("Problem Statement Created Successfully!");
+        }
       }
     } catch (error) {
-      console.error("Failed to create problem:", error);
+      console.error("Failed to save problem:", error);
     } finally {
       setIsSubmittingPS(false);
+    }
+  };
+
+  const startEditProblem = (ps: ProblemStatement) => {
+    setEditingPsId(ps.psId);
+    setPsForm({
+      title: ps.title,
+      domain: ps.domain,
+      difficulty: ps.difficulty,
+      description: ps.description,
+      maxTeams: ps.maxTeams
+    });
+    // Scroll to the top where the form is
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  };
+
+  const cancelEditProblem = () => {
+    setEditingPsId(null);
+    setPsForm({ title: "", domain: "Artificial Intelligence", difficulty: "Beginner", description: "", maxTeams: 5 });
+  };
+
+  const handleDeleteProblem = async (psId: string) => {
+    if (!window.confirm(`Are you sure you want to delete ${psId}? Teams assigned to this might encounter errors.`)) return;
+    try {
+      const res = await fetch(`/api/problems/${psId}`, { method: 'DELETE' });
+      if (res.ok) {
+        setProblems(problems.filter(p => p.psId !== psId));
+      } else {
+        alert("Failed to delete problem statement.");
+      }
+    } catch (error) {
+      console.error("Error deleting problem:", error);
     }
   };
 
@@ -234,6 +291,7 @@ export default function AdminDashboard() {
       console.error("Failed to save panels:", error);
     }
   };
+
   const handleSystemReset = async () => {
     if (!window.confirm("⚠️ WARNING: This will delete ALL registered teams, reset problem capacities, and clear all judging panels. Your timeline and problem descriptions will be saved. Are you sure you want to run a factory reset?")) return;
 
@@ -241,7 +299,7 @@ export default function AdminDashboard() {
       const res = await fetch('/api/system', { method: 'DELETE' });
       if (res.ok) {
         alert("System Reset Successful! The dashboard will now reload.");
-        window.location.reload(); // Reloads the page to clear the UI state
+        window.location.reload(); 
       } else {
         alert("Failed to reset the system.");
       }
@@ -249,6 +307,7 @@ export default function AdminDashboard() {
       console.error("Reset failed:", error);
     }
   };
+
   const phases = [
     { id: "locked", name: "System Locked", color: "text-red-400 border-red-500/50 bg-red-500/10" },
     { id: "registration", name: "Registration", color: "text-purple-400 border-purple-500/50 bg-purple-500/10" },
@@ -505,19 +564,47 @@ export default function AdminDashboard() {
                 <input type="datetime-local" value={timelineForm.finalRoundDate} onChange={(e) => setTimelineForm({...timelineForm, finalRoundDate: e.target.value})} className="w-full max-w-sm bg-neutral-900 border border-slate-700 text-slate-300 rounded px-3 py-2 text-sm focus:border-fuchsia-500 focus:outline-none" />
               </div>
             </div>
+
+            {/* DANGER ZONE */}
+            <div className="bg-red-950/20 border border-red-900/50 p-6 md:p-8 rounded-xl mt-12 relative overflow-hidden">
+              <div className="absolute top-0 left-0 w-1 h-full bg-red-600"></div>
+              <h3 className="text-sm font-black text-red-500 uppercase tracking-widest mb-2 flex items-center gap-2">
+                <span className="text-xl">⚠️</span> Danger Zone
+              </h3>
+              <p className="text-slate-400 text-sm mb-6 max-w-2xl leading-relaxed">
+                Need to run a fresh test? This will permanently delete all registered teams in the Databank, reset problem statement capacities to 0, and clear all judging panels. Your timeline dates and problem statements will remain intact.
+              </p>
+              <button 
+                onClick={handleSystemReset} 
+                className="px-6 py-3 bg-red-600/10 hover:bg-red-600 text-red-500 hover:text-white border border-red-500/50 text-xs font-black uppercase tracking-widest rounded-lg transition-all shadow-[0_0_15px_rgba(220,38,38,0.2)]"
+              >
+                Factory Reset Database
+              </button>
+            </div>
           </div>
         </div>
       )}
 
-      {/* PROBLEMS TAB */}
+      {/* =========================================
+          TAB 4: PROBLEM STATEMENTS
+      ========================================= */}
       {activeTab === 'problems' && (
         <div className="max-w-7xl mx-auto space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-500">
-          <div className="bg-neutral-900/60 border border-purple-900/50 rounded-2xl p-6 md:p-10 backdrop-blur-sm">
-            <h2 className="text-xl font-black text-white uppercase tracking-widest mb-6 flex items-center gap-3 border-b border-purple-900/50 pb-4">
-              <span className="w-2 h-2 bg-fuchsia-500 rounded-full"></span> Add Problem Statement
-            </h2>
+          
+          <div className={`bg-neutral-900/60 border ${editingPsId ? 'border-yellow-500/50 shadow-[0_0_20px_rgba(234,179,8,0.15)]' : 'border-purple-900/50'} rounded-2xl p-6 md:p-10 backdrop-blur-sm transition-all`}>
+            <div className="flex justify-between items-center mb-6 border-b border-purple-900/50 pb-4">
+              <h2 className="text-xl font-black text-white uppercase tracking-widest flex items-center gap-3">
+                <span className={`w-2 h-2 rounded-full ${editingPsId ? 'bg-yellow-500' : 'bg-fuchsia-500'}`}></span> 
+                {editingPsId ? `Editing: ${editingPsId}` : "Add Problem Statement"}
+              </h2>
+              {editingPsId && (
+                <button onClick={cancelEditProblem} className="text-xs text-slate-400 hover:text-red-400 font-bold uppercase transition-colors">
+                  Cancel Edit ✕
+                </button>
+              )}
+            </div>
             
-            <form onSubmit={handleCreateProblem} className="space-y-6">
+            <form onSubmit={handleSubmitProblem} className="space-y-6">
               <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                 <div className="md:col-span-2">
                   <label className="block text-xs text-slate-400 uppercase font-bold mb-2">Problem Title</label>
@@ -557,8 +644,10 @@ export default function AdminDashboard() {
               </div>
 
               <div className="flex justify-end pt-4">
-                <button type="submit" disabled={isSubmittingPS} className="px-8 py-3 bg-purple-600 hover:bg-purple-500 text-white font-bold uppercase tracking-widest rounded-lg transition-colors shadow-[0_0_15px_rgba(147,51,234,0.4)]">
-                  {isSubmittingPS ? "Adding..." : "Publish Statement"}
+                <button type="submit" disabled={isSubmittingPS} className={`px-8 py-3 text-white font-bold uppercase tracking-widest rounded-lg transition-colors shadow-lg ${
+                  editingPsId ? 'bg-yellow-600 hover:bg-yellow-500 shadow-yellow-600/30' : 'bg-purple-600 hover:bg-purple-500 shadow-purple-600/30'
+                }`}>
+                  {isSubmittingPS ? "Processing..." : editingPsId ? "Save Changes" : "Publish Statement"}
                 </button>
               </div>
             </form>
@@ -582,6 +671,7 @@ export default function AdminDashboard() {
                       <th className="p-4">Title & Domain</th>
                       <th className="p-4 text-center">Difficulty</th>
                       <th className="p-4 text-center">Capacity Filled</th>
+                      <th className="p-4 pr-6 text-right">Actions</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-slate-800/50">
@@ -608,6 +698,10 @@ export default function AdminDashboard() {
                                 {ps.selectedTeamsCount} <span className="text-slate-600 text-sm">/ {ps.maxTeams}</span>
                               </span>
                             </div>
+                          </td>
+                          <td className="p-4 pr-6 text-right space-x-2">
+                            <button onClick={() => startEditProblem(ps)} className="px-3 py-1 bg-blue-500/10 text-blue-400 hover:bg-blue-500 hover:text-white border border-blue-500/50 rounded text-xs font-bold uppercase transition-all">Edit</button>
+                            <button onClick={() => handleDeleteProblem(ps.psId)} className="px-3 py-1 bg-red-500/10 text-red-400 hover:bg-red-500 hover:text-white border border-red-500/50 rounded text-xs font-bold uppercase transition-all">Delete</button>
                           </td>
                         </tr>
                       );
@@ -824,24 +918,6 @@ export default function AdminDashboard() {
 
         </div>
       )}
-      {/* =========================================
-                DANGER ZONE
-            ========================================= */}
-            <div className="bg-red-950/20 border border-red-900/50 p-6 md:p-8 rounded-xl mt-12 relative overflow-hidden">
-              <div className="absolute top-0 left-0 w-1 h-full bg-red-600"></div>
-              <h3 className="text-sm font-black text-red-500 uppercase tracking-widest mb-2 flex items-center gap-2">
-                <span className="text-xl">⚠️</span> Danger Zone
-              </h3>
-              <p className="text-slate-400 text-sm mb-6 max-w-2xl leading-relaxed">
-                Need to run a fresh test? This will permanently delete all registered teams in the Databank, reset problem statement capacities to 0, and clear all judging panels. Your timeline dates and problem statements will remain intact.
-              </p>
-              <button 
-                onClick={handleSystemReset} 
-                className="px-6 py-3 bg-red-600/10 hover:bg-red-600 text-red-500 hover:text-white border border-red-500/50 text-xs font-black uppercase tracking-widest rounded-lg transition-all shadow-[0_0_15px_rgba(220,38,38,0.2)]"
-              >
-                Factory Reset Database
-              </button>
-            </div>
     </div>
   );
 }
