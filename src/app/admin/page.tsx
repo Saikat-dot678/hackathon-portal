@@ -335,7 +335,7 @@ export default function AdminDashboard() {
           <div>
             <h1 className="text-2xl md:text-3xl font-black text-white tracking-tighter flex items-center gap-3">
               <span className="text-red-500 animate-pulse">●</span> 
-              BURNBRAIN <span className="text-red-500 font-mono font-normal text-xl">OVERSEER</span>
+              BURNBRAIN <span className="text-red-500 font-mono font-normal text-xl">ADMIN</span>
             </h1>
           </div>
           <div className="flex items-center gap-4">
@@ -345,7 +345,7 @@ export default function AdminDashboard() {
           </div>
         </div>
 
-        <div className="flex gap-2 mt-6 overflow-x-auto hide-scrollbar pb-2">
+        <div className="flex justify-start md:justify-center gap-2 mt-6 overflow-x-auto hide-scrollbar pb-2 w-full">
           {tabs.map((tab) => (
             <button
               key={tab.id}

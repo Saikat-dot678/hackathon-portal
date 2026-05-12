@@ -35,7 +35,7 @@ export async function PATCH(request: Request) {
     const config = await SystemConfig.findOneAndUpdate(
       {}, 
       { $set: updateData },
-      { returnDocument: 'after', upsert: true } // <--- Updated!
+      { returnDocument: 'after', upsert: true } 
     );
 
     return NextResponse.json({ success: true, data: config });

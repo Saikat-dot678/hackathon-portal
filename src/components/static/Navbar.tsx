@@ -18,10 +18,10 @@ export default function Navbar() {
   }, []);
 
   return (
-    <div className="fixed top-6 w-full flex justify-center z-50 px-4 pointer-events-none">
+    // 1. Changed to flex-col and items-center so the pill and menu stack cleanly
+    <div className="fixed top-6 w-full flex flex-col items-center z-50 px-4 pointer-events-none">
       
-      {/* Changed 'rounded-2xl' to 'rounded-full' here to make the ends completely round.
-      */}
+      {/* 2. THE MAIN PILL */}
       <nav 
         className={`w-full max-w-7xl transition-all duration-300 rounded-full border pointer-events-auto ${
           isScrolled 
@@ -94,27 +94,28 @@ export default function Navbar() {
             </div>
           </div>
         </div>
-
-        {/* Mobile Navigation Dropdown */}
-        {isOpen && (
-          <div className="md:hidden bg-black/95 border border-purple-900/50 rounded-3xl mt-4 overflow-hidden backdrop-blur-xl shadow-[0_8px_32px_rgba(168,85,247,0.2)] mx-2">
-            <div className="px-4 pt-4 pb-6 flex flex-col space-y-4">
-              <Link href="#announcements" onClick={closeMenu} className="block px-3 py-2 rounded-md text-base font-medium text-slate-300 hover:text-white hover:bg-purple-900/30 transition-colors uppercase tracking-wide">
-                Announcements
-              </Link>
-              <Link href="#sponsors" onClick={closeMenu} className="block px-3 py-2 rounded-md text-base font-medium text-slate-300 hover:text-white hover:bg-purple-900/30 transition-colors uppercase tracking-wide">
-                Sponsors
-              </Link>
-              <Link href="#organizers" onClick={closeMenu} className="block px-3 py-2 rounded-md text-base font-medium text-slate-300 hover:text-white hover:bg-purple-900/30 transition-colors uppercase tracking-wide">
-                Organizers
-              </Link>
-              <Link href="#contact" onClick={closeMenu} className="block px-3 py-2 rounded-md text-base font-medium text-slate-300 hover:text-white hover:bg-purple-900/30 transition-colors uppercase tracking-wide">
-                Contact
-              </Link>
-            </div>
-          </div>
-        )}
       </nav>
+
+      {/* 3. MOBILE MENU DROPDOWN (Moved OUTSIDE the nav tag) */}
+      {isOpen && (
+        <div className="md:hidden w-full max-w-7xl bg-black/95 border border-purple-900/50 rounded-3xl mt-4 overflow-hidden backdrop-blur-xl shadow-[0_8px_32px_rgba(168,85,247,0.2)] pointer-events-auto animate-in fade-in slide-in-from-top-4 duration-200">
+          <div className="px-4 pt-4 pb-6 flex flex-col space-y-4">
+            <Link href="#announcements" onClick={closeMenu} className="block px-3 py-2 rounded-md text-base font-medium text-slate-300 hover:text-white hover:bg-purple-900/30 transition-colors uppercase tracking-wide">
+              Announcements
+            </Link>
+            <Link href="#sponsors" onClick={closeMenu} className="block px-3 py-2 rounded-md text-base font-medium text-slate-300 hover:text-white hover:bg-purple-900/30 transition-colors uppercase tracking-wide">
+              Sponsors
+            </Link>
+            <Link href="#organizers" onClick={closeMenu} className="block px-3 py-2 rounded-md text-base font-medium text-slate-300 hover:text-white hover:bg-purple-900/30 transition-colors uppercase tracking-wide">
+              Organizers
+            </Link>
+            <Link href="#contact" onClick={closeMenu} className="block px-3 py-2 rounded-md text-base font-medium text-slate-300 hover:text-white hover:bg-purple-900/30 transition-colors uppercase tracking-wide">
+              Contact
+            </Link>
+          </div>
+        </div>
+      )}
+
     </div>
   );
 }

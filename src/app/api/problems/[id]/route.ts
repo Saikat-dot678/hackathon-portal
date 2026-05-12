@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
 import { connectDB } from "@/lib/db";
-import Problem from "@/models/ProblemStatement"; // Ensure this matches your actual Problem model path
+import Problem from "@/models/ProblemStatement"; 
 
 export async function PATCH(
   request: Request,
