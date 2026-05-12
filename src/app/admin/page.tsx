@@ -234,7 +234,21 @@ export default function AdminDashboard() {
       console.error("Failed to save panels:", error);
     }
   };
+  const handleSystemReset = async () => {
+    if (!window.confirm("⚠️ WARNING: This will delete ALL registered teams, reset problem capacities, and clear all judging panels. Your timeline and problem descriptions will be saved. Are you sure you want to run a factory reset?")) return;
 
+    try {
+      const res = await fetch('/api/system', { method: 'DELETE' });
+      if (res.ok) {
+        alert("System Reset Successful! The dashboard will now reload.");
+        window.location.reload(); // Reloads the page to clear the UI state
+      } else {
+        alert("Failed to reset the system.");
+      }
+    } catch (error) {
+      console.error("Reset failed:", error);
+    }
+  };
   const phases = [
     { id: "locked", name: "System Locked", color: "text-red-400 border-red-500/50 bg-red-500/10" },
     { id: "registration", name: "Registration", color: "text-purple-400 border-purple-500/50 bg-purple-500/10" },
@@ -298,7 +312,7 @@ export default function AdminDashboard() {
               {[
                 { label: "Total Teams", val: teams.length, trend: "Live count" },
                 { label: "Submissions", val: teams.filter(t => t.ppt).length, trend: "PPTs uploaded" },
-                { label: "Finalists", val: teams.filter(t => t.status !== "pending").length, trend: "Selected", color: "text-fuchsia-400" },
+                { label: "Finalists", val: teams.filter(t => t.status === 'finalist' || t.status === 'COMPLETED' || t.status.includes('winner')).length, trend: "Selected", color: "text-fuchsia-400" },
                 { label: "Active Phase", val: activePhase.replace('_', ' '), trend: "Live", color: "text-red-400 uppercase text-xs" },
               ].map((stat, i) => (
                 <div key={i} className="bg-neutral-900/60 border border-purple-900/50 p-5 rounded-xl backdrop-blur-sm">
@@ -810,6 +824,24 @@ export default function AdminDashboard() {
 
         </div>
       )}
+      {/* =========================================
+                DANGER ZONE
+            ========================================= */}
+            <div className="bg-red-950/20 border border-red-900/50 p-6 md:p-8 rounded-xl mt-12 relative overflow-hidden">
+              <div className="absolute top-0 left-0 w-1 h-full bg-red-600"></div>
+              <h3 className="text-sm font-black text-red-500 uppercase tracking-widest mb-2 flex items-center gap-2">
+                <span className="text-xl">⚠️</span> Danger Zone
+              </h3>
+              <p className="text-slate-400 text-sm mb-6 max-w-2xl leading-relaxed">
+                Need to run a fresh test? This will permanently delete all registered teams in the Databank, reset problem statement capacities to 0, and clear all judging panels. Your timeline dates and problem statements will remain intact.
+              </p>
+              <button 
+                onClick={handleSystemReset} 
+                className="px-6 py-3 bg-red-600/10 hover:bg-red-600 text-red-500 hover:text-white border border-red-500/50 text-xs font-black uppercase tracking-widest rounded-lg transition-all shadow-[0_0_15px_rgba(220,38,38,0.2)]"
+              >
+                Factory Reset Database
+              </button>
+            </div>
     </div>
   );
 }
